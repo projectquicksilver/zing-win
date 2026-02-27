@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Mystery Box — Card Five</title>
+  <link rel="stylesheet" href="../shared/shared.css"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <style>
+    /* ── MYSTERY BOX ── */
+    .box-stage { display:flex; flex-direction:column; align-items:center; gap:20px; opacity:0; }
+    .box-arena { position:relative; width:240px; height:240px; display:flex; align-items:center; justify-content:center; }
+
+    /* Particle ring */
+    .box-ring {
+      position:absolute; inset:-24px; border-radius:50%;
+      border:1px dashed rgba(255,215,0,0.1);
+      animation:spin 15s linear infinite;
+    }
+    .box-ring-2 {
+      position:absolute; inset:-40px; border-radius:50%;
+      border:1px dashed rgba(198,83,255,0.08);
+      animation:spin 25s linear infinite reverse;
+    }
+
+    /* Glow aura */
+    .box-aura {
+      position:absolute; inset:-30px; border-radius:50%;
+      background:radial-gradient(circle,rgba(198,83,255,0.1) 0%,transparent 65%);
+      animation:pulsate 2s ease-in-out infinite;
+    }
+
+    /* Floating question marks */
+    .qm {
+      position:absolute; font-family:'Bebas Neue',sans-serif; font-size:26px;
+      color:rgba(255,215,0,0.18); pointer-events:none; animation:float 3s ease-in-out infinite;
+    }
+    .qm:nth-child(1){top:-18px;left:-28px;animation-delay:0s;}
+    .qm:nth-child(2){top:-10px;right:-24px;animation-delay:0.7s;font-size:20px;}
+    .qm:nth-child(3){bottom:-12px;left:-18px;animation-delay:1.3s;font-size:30px;}
+    .qm:nth-child(4){bottom:-18px;right:-26px;animation-delay:0.4s;font-size:22px;}
+
+    /* The box */
+    .mystery-box { width:200px; height:200px; position:relative; transform-origin:center bottom; animation:boxShake 3s ease-in-out infinite; cursor:none; }
+    @keyframes boxShake {
+      0%,100%{transform:rotate(0deg);}
+      8%{transform:rotate(-3.5deg);}18%{transform:rotate(3.5deg);}
+      28%{transform:rotate(-2deg);}36%{transform:rotate(2deg);}
+      44%,100%{transform:rotate(0deg);}
+    }
+
+    .box-body {
+      position:absolute; bottom:0; left:0; right:0; height:155px;
+      background:linear-gradient(145deg,#1e0a45,#330f70,#1e0a45);
+      border:2px solid rgba(255,215,0,0.35); border-radius:6px 6px 12px 12px;
+      overflow:hidden; display:flex; align-items:center; justify-content:center;
+      font-size:58px;
+      box-shadow:0 0 50px rgba(198,83,255,0.2),0 0 100px rgba(255,215,0,0.08);
+    }
+    .box-body::before {
+      content:''; position:absolute; inset:0;
+      background:repeating-linear-gradient(45deg,rgba(255,215,0,0.02) 0px,rgba(255,215,0,0.02) 2px,transparent 2px,transparent 16px);
+    }
+    .box-body::after {
+      content:''; position:absolute; top:0; bottom:0; left:50%; transform:translateX(-50%);
+      width:32px; background:linear-gradient(135deg,rgba(255,215,0,0.15),rgba(255,150,0,0.08));
+      border-left:1px solid rgba(255,215,0,0.18); border-right:1px solid rgba(255,215,0,0.18);
+    }
+
+    .box-lid {
+      position:absolute; top:0; left:-8px; right:-8px; height:52px;
+      background:linear-gradient(145deg,#2c1278,#4a1ea8,#2c1278);
+      border:2px solid rgba(255,215,0,0.45); border-radius:10px;
+      box-shadow:0 0 24px rgba(198,83,255,0.3);
+      transform-origin:center bottom;
+      z-index:5;
+    }
+    .box-lid::after {
+      content:''; position:absolute; top:50%; left:0; right:0; transform:translateY(-50%);
+      height:16px; background:linear-gradient(90deg,rgba(255,215,0,0.12),rgba(255,150,0,0.1));
+      border-top:1px solid rgba(255,215,0,0.22); border-bottom:1px solid rgba(255,215,0,0.22);
+    }
+    .box-bow { position:absolute; top:-18px; left:50%; transform:translateX(-50%); font-size:30px; animation:pulsate 1.8s ease-in-out infinite; z-index:6; }
+
+    #boxContent { position:relative; z-index:1; font-size:58px; }
+
+    .box-hint { font-family:'Caveat',cursive; font-size:16px; color:rgba(255,215,0,0.42); display:flex; align-items:center; gap:7px; animation:pulsate 1.8s ease-in-out infinite; }
+
+    /* Open button */
+    .btn-open {
+      font-family:'Orbitron',sans-serif; font-size:12px; font-weight:900; letter-spacing:3px;
+      padding:15px 52px; border-radius:14px; border:none; cursor:none;
+      background:linear-gradient(135deg,var(--violet),var(--rose),var(--amber)); color:#fff;
+      box-shadow:0 0 32px rgba(198,83,255,0.4),0 4px 20px rgba(0,0,0,0.5);
+      position:relative; overflow:hidden; transition:transform 0.2s; opacity:0;
+    }
+    .btn-open::before{content:'';position:absolute;top:-50%;left:-80%;width:55%;height:200%;background:rgba(255,255,255,0.22);transform:skewX(-22deg);animation:btnShine 3s infinite;}
+    .btn-open:hover{transform:scale(1.06);}
+    .btn-open.show{opacity:1;}
+  </style>
+</head>
+<body>
+<div id="cursor"></div><div id="cursor-dot"></div>
+<canvas id="bgCanvas"></canvas>
+<div class="noise"></div><div class="vignette"></div>
+
+<header class="page-header">
+  <a href="../index.html" class="back-btn">← Back to Cards</a>
+  <span class="page-badge">Card Five · Mystery Box</span>
+</header>
+
+<div id="scene">
+  <div class="game-eyebrow">✦ What lies within? Click to find out ✦</div>
+  <div class="game-title">MYSTERY BOX</div>
+
+  <div class="box-stage" id="boxStage">
+    <div class="box-arena">
+      <div class="box-aura"></div>
+      <div class="box-ring"></div>
+      <div class="box-ring-2"></div>
+      <div class="mystery-box" id="mysteryBox">
+        <div class="qm">?</div><div class="qm">?</div><div class="qm">?</div><div class="qm">?</div>
+        <div class="box-lid" id="boxLid">
+          <div class="box-bow">🎀</div>
+        </div>
+        <div class="box-body">
+          <span id="boxContent">?</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="box-hint" id="boxHint">👆 Click the box or button to open it</div>
+  </div>
+
+  <button class="btn-open show" id="openBtn">🎁 OPEN THE BOX</button>
+</div>
+
+<div class="result-flash" id="resultFlash">
+  <div class="rf-badge">Card Five · Mystery Box</div>
+  <div class="rf-icon" id="rfIcon">🎁</div>
+  <div class="rf-title">SURPRISE!</div>
+  <div class="rf-sub">Your mystery prize is revealed!</div>
+  <div class="rf-prize" id="rfPrize">—</div>
+  <div class="rf-btns">
+    <button class="rf-reveal" id="revealBtn">🏆 View All Winners</button>
+  </div>
+</div>
+
+<div id="carousel">
+  <div class="car-header"><div class="car-title">🏆 Lucky Draw Winners</div><div class="car-sub">Official Results · Coromandel CPC 2025</div></div>
+  <div class="car-progress"><div class="car-progress-bar" id="carBar"></div></div>
+  <div class="car-viewport"><div class="car-track" id="carTrack"></div></div>
+  <div class="car-nav"><div class="car-arrow" id="carPrev">←</div><div class="car-dots" id="carDots"></div><div class="car-arrow" id="carNext">→</div></div>
+  <a href="../index.html" class="car-home">← Return to Card Select</a>
+</div>
+
+<script src="../shared/shared.js"></script>
+<script>
+  APP.CFG.csvPath = '../data.csv';
+  APP.initParticles('bgCanvas');
+  APP.initCursor();
+
+  let opened = false;
+  let prizeIcon = '🔥', prizeText = 'Home Theater System', prizeFull = '';
+
+  // Load Card Five prize
+  APP.loadCSV(data => {
+    const r = data.find(d => (d.Card||'').toLowerCase().includes('five') && (d.Status||'').toLowerCase().includes('winner') && !(d.Status||'').toLowerCase().includes('runner'));
+    if (r) { prizeIcon = '🔥'; prizeText = r.Prize; prizeFull = r.Name + ' — ' + r.Prize; }
+    else { prizeFull = prizeText; }
+  });
+
+  function openBox() {
+    if (opened) return; opened = true;
+    const lid = document.getElementById('boxLid');
+    document.getElementById('boxHint').style.display = 'none';
+    document.getElementById('openBtn').disabled = true;
+
+    // Intense shake
+    gsap.to('#mysteryBox', {
+      rotation: 14, yoyo: true, repeat: 14, duration: 0.05, ease: 'none',
+      onComplete: () => {
+        gsap.to('#mysteryBox', { rotation: 0, duration: 0.2 });
+
+        // Lid flips off
+        gsap.to(lid, { rotationX: -170, y: -90, x: 15, opacity: 0, duration: 0.5, ease: 'power3.out', delay: 0.12 });
+
+        // Light burst
+        gsap.to('.box-aura', { background: 'radial-gradient(circle,rgba(255,215,0,0.25) 0%,transparent 65%)', duration: 0.3, delay: 0.35 });
+
+        // Content reveal
+        const content = document.getElementById('boxContent');
+        setTimeout(() => {
+          content.textContent = prizeIcon;
+          gsap.fromTo(content, {scale:0,opacity:0,rotationY:180}, {scale:1,opacity:1,rotationY:0,duration:0.8,ease:'back.out(1.8)'});
+        }, 400);
+
+        // Explosion
+        setTimeout(() => {
+          APP.boom('#C653FF'); APP.sparks('#FFD700', 22);
+          confetti({particleCount:180,spread:110,origin:{y:0.5},colors:['#FFD700','#C653FF','#fff','#FF2D6B'],zIndex:9999});
+
+          setTimeout(() => {
+            document.getElementById('rfIcon').textContent = prizeIcon;
+            document.getElementById('rfPrize').textContent = prizeFull || prizeText;
+            document.getElementById('resultFlash').classList.add('show');
+          }, 700);
+        }, 500);
+      }
+    });
+  }
+
+  document.getElementById('openBtn').addEventListener('click', openBox);
+  document.getElementById('mysteryBox').addEventListener('click', openBox);
+  document.getElementById('revealBtn').addEventListener('click', () => {
+    document.getElementById('resultFlash').classList.remove('show');
+    APP.loadCSV(data => {
+      document.getElementById('carousel').classList.add('show');
+      APP.Carousel.init('carousel', data); APP.boom('#FFD700');
+      document.getElementById('carPrev').addEventListener('click', () => APP.Carousel.prev());
+      document.getElementById('carNext').addEventListener('click', () => APP.Carousel.next());
+    });
+  });
+
+  window.addEventListener('load', () => {
+    gsap.to('.game-eyebrow', {opacity:1,duration:0.8,delay:0.3});
+    gsap.fromTo('.game-title',{opacity:0,y:-22},{opacity:1,y:0,duration:0.9,ease:'power3.out',delay:0.4});
+    gsap.to('#boxStage',{opacity:1,scale:1,duration:1.2,ease:'back.out(1.6)',delay:0.5});
+    gsap.from('#boxStage',{opacity:0,scale:0.75});
+    gsap.to('.btn-open',{opacity:1,duration:0.7,delay:0.9});
+  });
+</script>
+</body>
+</html>

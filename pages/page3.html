@@ -1,0 +1,221 @@
+<!-- PAGE 3: SCRATCH & WIN -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Scratch & Win — Card Three</title>
+  <link rel="stylesheet" href="../shared/shared.css"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <style>
+    .scratch-stage { display:flex; flex-direction:column; align-items:center; gap:16px; opacity:0; }
+
+    .scratch-frame {
+      position:relative; width:420px; height:230px; border-radius:22px;
+      border:2px solid rgba(255,215,0,0.28); overflow:hidden;
+      box-shadow:0 0 50px rgba(255,215,0,0.1),0 0 100px rgba(255,100,0,0.07),var(--shadow2);
+      cursor: none;
+    }
+
+    .scratch-prize {
+      position:absolute; inset:0;
+      background:linear-gradient(140deg,#100c30,#1c1450,#0e0c28);
+      display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; z-index:1;
+    }
+    .sp-icon { font-size:52px; filter:drop-shadow(0 0 24px rgba(0,229,255,0.6)); animation:float 2.5s ease-in-out infinite; }
+    .sp-title {
+      font-family:'Bebas Neue',sans-serif; font-size:30px; letter-spacing:5px;
+      background:linear-gradient(135deg,var(--gold),var(--amber)); -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+    }
+    .sp-prize { font-family:'Orbitron',sans-serif; font-size:9px; letter-spacing:4px; color:rgba(0,229,255,0.6); }
+
+    #scratchCanvas { position:absolute; inset:0; z-index:2; border-radius:20px; }
+
+    /* Progress */
+    .scratch-progress { width:420px; }
+    .spr-header { display:flex; justify-content:space-between; margin-bottom:4px; font-family:'Orbitron',sans-serif; font-size:7.5px; letter-spacing:3px; color:rgba(255,215,0,0.38); }
+    .spr-bar-wrap { width:100%; height:3px; background:rgba(255,255,255,0.05); border-radius:3px; overflow:hidden; }
+    .spr-bar { height:100%; background:linear-gradient(90deg,var(--gold),var(--rose)); width:0%; transition:width 0.1s; box-shadow:0 0 6px rgba(255,215,0,0.5); }
+
+    .scratch-hint { font-family:'Caveat',cursive; font-size:17px; color:rgba(255,215,0,0.42); display:flex; align-items:center; gap:7px; animation:pulsate 1.8s ease-in-out infinite; }
+
+    .btn-claim {
+      font-family:'Orbitron',sans-serif; font-size:11px; font-weight:900; letter-spacing:3px;
+      padding:14px 48px; border-radius:14px; border:none; cursor:none;
+      background:linear-gradient(135deg,var(--gold),var(--amber)); color:#000;
+      box-shadow:0 0 30px rgba(255,150,0,0.4); transition:transform 0.2s;
+      opacity:0; pointer-events:none; display:none;
+    }
+    .btn-claim.show { opacity:1; pointer-events:all; display:block; }
+    .btn-claim:hover { transform:scale(1.06); }
+  </style>
+</head>
+<body>
+<div id="cursor"></div><div id="cursor-dot"></div>
+<canvas id="bgCanvas"></canvas>
+<div class="noise"></div><div class="vignette"></div>
+
+<header class="page-header">
+  <a href="../index.html" class="back-btn">← Back to Cards</a>
+  <span class="page-badge">Card Three · Scratch & Win</span>
+</header>
+
+<div id="scene">
+  <div class="game-eyebrow">✦ Scratch away to reveal your prize ✦</div>
+  <div class="game-title">SCRATCH & WIN</div>
+
+  <div class="scratch-stage" id="scratchStage">
+    <div class="scratch-frame" id="scratchFrame">
+      <div class="scratch-prize">
+        <div class="sp-icon" id="spIcon">💎</div>
+        <div class="sp-title">YOU WIN!</div>
+        <div class="sp-prize" id="spPrize">Loading prize...</div>
+      </div>
+      <canvas id="scratchCanvas" width="420" height="230"></canvas>
+    </div>
+
+    <div class="scratch-progress">
+      <div class="spr-header"><span>SCRATCHED</span><span id="pctLabel">0%</span></div>
+      <div class="spr-bar-wrap"><div class="spr-bar" id="sprBar"></div></div>
+    </div>
+
+    <div class="scratch-hint" id="scratchHint">☝ Scratch here with your cursor</div>
+    <button class="btn-claim" id="claimBtn">✨ Claim Your Prize</button>
+  </div>
+</div>
+
+<div class="result-flash" id="resultFlash">
+  <div class="rf-badge">Card Three · Scratch & Win</div>
+  <div class="rf-icon">💎</div>
+  <div class="rf-title">REVEALED!</div>
+  <div class="rf-sub">Your prize has been uncovered!</div>
+  <div class="rf-prize" id="rfPrize">—</div>
+  <div class="rf-btns">
+    <button class="rf-reveal" id="revealBtn">🏆 View All Winners</button>
+    <button class="btn-secondary" onclick="document.getElementById('resultFlash').classList.remove('show')">← Scratch Again</button>
+  </div>
+</div>
+
+<div id="carousel">
+  <div class="car-header"><div class="car-title">🏆 Lucky Draw Winners</div><div class="car-sub">Official Results · Coromandel CPC 2025</div></div>
+  <div class="car-progress"><div class="car-progress-bar" id="carBar"></div></div>
+  <div class="car-viewport"><div class="car-track" id="carTrack"></div></div>
+  <div class="car-nav"><div class="car-arrow" id="carPrev">←</div><div class="car-dots" id="carDots"></div><div class="car-arrow" id="carNext">→</div></div>
+  <a href="../index.html" class="car-home">← Return to Card Select</a>
+</div>
+
+<script src="../shared/shared.js"></script>
+<script>
+  APP.CFG.csvPath = '../data.csv';
+  APP.initParticles('bgCanvas');
+  APP.initCursor();
+
+  const sc = document.getElementById('scratchCanvas');
+  const sctx = sc.getContext('2d');
+  const SW = 420, SH = 230;
+  let scratching = false, revealed = false;
+
+  // Load prize from CSV
+  APP.loadCSV(data => {
+    const card3 = data.find(r => (r.Card||'').toLowerCase().includes('three') && (r.Status||'').toLowerCase().includes('winner') && !(r.Status||'').toLowerCase().includes('runner'));
+    const prize = card3 ? card3.Prize : 'Smart Watch Series 8';
+    const name  = card3 ? card3.Name  : 'Lucky Winner';
+    document.getElementById('spPrize').textContent = prize;
+    document.getElementById('rfPrize').textContent = name + ' — ' + prize;
+  });
+
+  // Draw scratch layer
+  function initScratch() {
+    const g = sctx.createLinearGradient(0,0,SW,SH);
+    g.addColorStop(0,'#8a7a52'); g.addColorStop(0.3,'#b8a47a'); g.addColorStop(0.5,'#d4c28e');
+    g.addColorStop(0.7,'#b8a47a'); g.addColorStop(1,'#8a7a52');
+    sctx.fillStyle = g; sctx.fillRect(0,0,SW,SH);
+
+    // Texture
+    for (let i = 0; i < 900; i++) {
+      sctx.fillStyle = `rgba(0,0,0,${Math.random()*0.05})`;
+      sctx.beginPath(); sctx.arc(Math.random()*SW, Math.random()*SH, Math.random()*2+0.5,0,Math.PI*2); sctx.fill();
+    }
+    // Highlight lines
+    for (let i = 0; i < 12; i++) {
+      const y = Math.random()*SH;
+      sctx.strokeStyle = `rgba(255,255,255,${Math.random()*0.04})`;
+      sctx.lineWidth=1; sctx.beginPath(); sctx.moveTo(0,y); sctx.lineTo(SW,y); sctx.stroke();
+    }
+
+    sctx.fillStyle = 'rgba(80,60,20,0.55)';
+    sctx.font = 'bold 16px Orbitron,monospace';
+    sctx.textAlign = 'center'; sctx.textBaseline = 'middle';
+    sctx.fillText('✦  SCRATCH HERE  ✦', SW/2, SH/2-15);
+    sctx.font = '26px sans-serif';
+    sctx.fillText('💫  💫  💫', SW/2, SH/2+22);
+
+    sctx.strokeStyle='rgba(255,255,255,0.22)'; sctx.lineWidth=2;
+    sctx.strokeRect(2,2,SW-4,SH-4);
+  }
+  initScratch();
+  sctx.globalCompositeOperation = 'destination-out';
+
+  function pos(e) {
+    const r = sc.getBoundingClientRect();
+    const sx = SW/r.width, sy = SH/r.height;
+    if (e.touches) return { x:(e.touches[0].clientX-r.left)*sx, y:(e.touches[0].clientY-r.top)*sy };
+    return { x:(e.clientX-r.left)*sx, y:(e.clientY-r.top)*sy };
+  }
+
+  function doScratch(e) {
+    if (!scratching) return;
+    const p = pos(e);
+    sctx.beginPath(); sctx.arc(p.x,p.y,30,0,Math.PI*2); sctx.fill();
+    updatePct(); e.preventDefault();
+  }
+
+  function updatePct() {
+    const d = sctx.getImageData(0,0,SW,SH).data;
+    let cleared = 0;
+    for (let i = 3; i < d.length; i+=4) { if (d[i] < 128) cleared++; }
+    const pct = Math.min(Math.round((cleared/(SW*SH))*100*4), 100);
+    document.getElementById('sprBar').style.width = pct+'%';
+    document.getElementById('pctLabel').textContent = pct+'%';
+    if (pct >= 65 && !revealed) autoReveal();
+  }
+
+  function autoReveal() {
+    revealed = true;
+    document.getElementById('scratchHint').style.display = 'none';
+    gsap.to(sc, { opacity:0, duration:0.9, onComplete:() => sc.style.pointerEvents='none' });
+    document.getElementById('claimBtn').classList.add('show');
+    APP.boom('#00E5FF'); APP.sparks('#00E5FF');
+  }
+
+  sc.addEventListener('mousedown', e => { scratching=true; doScratch(e); });
+  sc.addEventListener('mousemove', doScratch);
+  sc.addEventListener('mouseup', () => scratching=false);
+  sc.addEventListener('touchstart', e => { scratching=true; e.preventDefault(); });
+  sc.addEventListener('touchmove', doScratch);
+  sc.addEventListener('touchend', () => scratching=false);
+
+  document.getElementById('claimBtn').addEventListener('click', () => {
+    document.getElementById('resultFlash').classList.add('show');
+    APP.boom('#00E5FF'); APP.sparks('#FFD700', 20);
+  });
+  document.getElementById('revealBtn').addEventListener('click', () => {
+    document.getElementById('resultFlash').classList.remove('show');
+    APP.loadCSV(data => {
+      document.getElementById('carousel').classList.add('show');
+      APP.Carousel.init('carousel', data); APP.boom('#FFD700');
+      document.getElementById('carPrev').addEventListener('click', () => APP.Carousel.prev());
+      document.getElementById('carNext').addEventListener('click', () => APP.Carousel.next());
+    });
+  });
+
+  window.addEventListener('load', () => {
+    gsap.to('.game-eyebrow', {opacity:1,duration:0.8,delay:0.3});
+    gsap.fromTo('.game-title',{opacity:0,y:-22},{opacity:1,y:0,duration:0.9,ease:'power3.out',delay:0.4});
+    gsap.to('#scratchStage',{opacity:1,scale:1,duration:1.1,ease:'back.out(1.4)',delay:0.5});
+    gsap.from('#scratchStage',{scale:0.82,y:22});
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Pick a Number — Card Six</title>
+  <link rel="stylesheet" href="../shared/shared.css"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <style>
+    /* ── NUMBER PICKER ── */
+    .picker-stage { display:flex; flex-direction:column; align-items:center; gap:18px; opacity:0; }
+
+    /* Status display */
+    .status-bar {
+      background:rgba(0,0,0,0.32); border:1px solid rgba(0,255,136,0.12); border-radius:18px;
+      padding:12px 32px; display:flex; align-items:center; gap:20px;
+    }
+    .sb-item { display:flex; flex-direction:column; align-items:center; gap:2px; }
+    .sb-lbl { font-family:'Orbitron',sans-serif; font-size:6.5px; letter-spacing:3.5px; color:rgba(0,255,136,0.4); text-transform:uppercase; }
+    .sb-val { font-family:'Orbitron',sans-serif; font-size:30px; font-weight:900; min-width:64px; text-align:center; line-height:1; transition:all 0.18s; }
+    .sb-val.selected-val { color:var(--green); text-shadow:0 0 18px rgba(0,255,136,0.6); }
+    .sb-val.lucky-val { color:var(--rose); text-shadow:0 0 18px rgba(255,45,107,0.6); }
+    .sb-val.result-val { color:var(--gold); font-size:22px; }
+    .sb-div { width:1px; height:38px; background:linear-gradient(to bottom,transparent,rgba(0,255,136,0.18),transparent); }
+
+    /* Number grid */
+    .num-grid { display:grid; grid-template-columns:repeat(9,1fr); gap:8px; max-width:580px; }
+
+    .num-btn {
+      width:54px; height:54px; border-radius:14px;
+      border:1.5px solid rgba(255,255,255,0.08);
+      background:linear-gradient(145deg,rgba(255,255,255,0.055),rgba(255,255,255,0.018));
+      font-family:'Orbitron',sans-serif; font-size:13px; font-weight:700;
+      color:rgba(255,255,255,0.55); cursor:none;
+      transition:all 0.2s; position:relative; overflow:hidden;
+    }
+    .num-btn::before { content:''; position:absolute; inset:0; border-radius:12px; background:radial-gradient(circle at 50% 28%,rgba(255,255,255,0.07),transparent 70%); }
+    .num-btn:hover {
+      border-color:rgba(0,255,136,0.5); color:var(--green);
+      background:linear-gradient(145deg,rgba(0,255,136,0.1),rgba(0,200,80,0.06));
+      transform:scale(1.12) translateY(-2px);
+      box-shadow:0 0 20px rgba(0,255,136,0.2),0 6px 16px rgba(0,0,0,0.4);
+    }
+    .num-btn.selected {
+      border-color:var(--green); color:#000;
+      background:linear-gradient(135deg,var(--green),#00cc66);
+      transform:scale(1.15) translateY(-3px);
+      box-shadow:0 0 28px rgba(0,255,136,0.5),0 8px 20px rgba(0,0,0,0.5);
+    }
+    .num-btn.lucky-highlight { border-color:rgba(255,45,107,0.4); color:rgba(255,45,107,0.7); }
+    .num-btn.lucky-highlight:hover { border-color:var(--rose); color:var(--rose); background:rgba(255,45,107,0.1); box-shadow:0 0 20px rgba(255,45,107,0.2); }
+    .num-btn.disabled-btn { opacity:0.2; pointer-events:none; }
+
+    /* Confirm button */
+    .btn-confirm {
+      font-family:'Orbitron',sans-serif; font-size:12px; font-weight:900; letter-spacing:3px;
+      padding:15px 56px; border-radius:14px; border:none; cursor:none;
+      background:linear-gradient(135deg,var(--green),#00cc66,var(--cyan)); color:#000;
+      box-shadow:0 0 30px rgba(0,255,136,0.28),0 4px 20px rgba(0,0,0,0.5);
+      position:relative; overflow:hidden; transition:all 0.2s;
+      opacity:0.3; pointer-events:none;
+    }
+    .btn-confirm::before{content:'';position:absolute;top:-50%;left:-80%;width:55%;height:200%;background:rgba(255,255,255,0.22);transform:skewX(-22deg);animation:btnShine 3s infinite;}
+    .btn-confirm:hover{transform:scale(1.06);}
+    .btn-confirm.active{opacity:1;pointer-events:all;}
+
+    /* Reveal animation */
+    @keyframes numPop { 0%{transform:scale(1)} 45%{transform:scale(1.4)} 100%{transform:scale(1)} }
+    @keyframes numRoll { 0%,100%{transform:scale(1) rotateX(0deg)} 50%{transform:scale(1.2) rotateX(15deg)} }
+  </style>
+</head>
+<body>
+<div id="cursor"></div><div id="cursor-dot"></div>
+<canvas id="bgCanvas"></canvas>
+<div class="noise"></div><div class="vignette"></div>
+
+<header class="page-header">
+  <a href="../index.html" class="back-btn">← Back to Cards</a>
+  <span class="page-badge">Card Six · Pick a Number</span>
+</header>
+
+<div id="scene">
+  <div class="game-eyebrow">✦ Choose 1 – 36, trust your instinct ✦</div>
+  <div class="game-title">PICK YOUR NUMBER</div>
+
+  <div class="picker-stage" id="pickerStage">
+
+    <div class="status-bar">
+      <div class="sb-item">
+        <div class="sb-lbl">Your Pick</div>
+        <div class="sb-val selected-val" id="sbSelected">—</div>
+      </div>
+      <div class="sb-div"></div>
+      <div class="sb-item">
+        <div class="sb-lbl">Lucky No.</div>
+        <div class="sb-val lucky-val" id="sbLucky">?</div>
+      </div>
+      <div class="sb-div"></div>
+      <div class="sb-item">
+        <div class="sb-lbl">Result</div>
+        <div class="sb-val result-val" id="sbResult">—</div>
+      </div>
+    </div>
+
+    <div class="num-grid" id="numGrid"></div>
+
+    <button class="btn-confirm" id="confirmBtn">🌟 CONFIRM MY NUMBER</button>
+  </div>
+</div>
+
+<div class="result-flash" id="resultFlash">
+  <div class="rf-badge">Card Six · Pick a Number</div>
+  <div class="rf-icon" id="rfIcon">🌟</div>
+  <div class="rf-title" id="rfTitle">YOU WIN!</div>
+  <div class="rf-sub" id="rfSub">Fortune smiled on you!</div>
+  <div class="rf-prize" id="rfPrize">—</div>
+  <div class="rf-btns">
+    <button class="rf-reveal" id="revealBtn">🏆 View All Winners</button>
+    <button class="btn-secondary" onclick="document.getElementById('resultFlash').classList.remove('show')">← Pick Again</button>
+  </div>
+</div>
+
+<div id="carousel">
+  <div class="car-header"><div class="car-title">🏆 Lucky Draw Winners</div><div class="car-sub">Official Results · Coromandel CPC 2025</div></div>
+  <div class="car-progress"><div class="car-progress-bar" id="carBar"></div></div>
+  <div class="car-viewport"><div class="car-track" id="carTrack"></div></div>
+  <div class="car-nav"><div class="car-arrow" id="carPrev">←</div><div class="car-dots" id="carDots"></div><div class="car-arrow" id="carNext">→</div></div>
+  <a href="../index.html" class="car-home">← Return to Card Select</a>
+</div>
+
+<script src="../shared/shared.js"></script>
+<script>
+  APP.CFG.csvPath = '../data.csv';
+  APP.initParticles('bgCanvas');
+  APP.initCursor();
+
+  const LUCKY_SET = new Set([3,7,11,13,21,27,9,18,33,36]);
+  const WINNING = 1 + Math.floor(Math.random() * 36);
+  let selected = null, confirmed = false;
+
+  let card6Prize = 'Dinner for Two — 5 Star';
+  APP.loadCSV(data => {
+    const r = data.find(d => (d.Card||'').toLowerCase().includes('six') && (d.Status||'').toLowerCase().includes('winner') && !(d.Status||'').toLowerCase().includes('runner'));
+    if (r) card6Prize = r.Name + ' — ' + r.Prize;
+  });
+
+  // Build grid
+  const grid = document.getElementById('numGrid');
+  for (let n = 1; n <= 36; n++) {
+    const btn = document.createElement('button');
+    btn.className = 'num-btn' + (LUCKY_SET.has(n) ? ' lucky-highlight' : '');
+    btn.textContent = String(n).padStart(2,'0');
+    btn.dataset.n = n;
+    btn.addEventListener('click', () => selectNum(n, btn));
+    grid.appendChild(btn);
+  }
+
+  function selectNum(n, btn) {
+    document.querySelectorAll('.num-btn.selected').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+    selected = n;
+    const el = document.getElementById('sbSelected');
+    el.textContent = String(n).padStart(2,'0');
+    el.style.animation = 'none';
+    requestAnimationFrame(() => el.style.animation = 'numPop 0.35s ease');
+    document.getElementById('confirmBtn').classList.add('active');
+  }
+
+  document.getElementById('confirmBtn').addEventListener('click', () => {
+    if (!selected || confirmed) return;
+    confirmed = true;
+    document.getElementById('confirmBtn').disabled = true;
+    document.querySelectorAll('.num-btn').forEach(b => b.classList.add('disabled-btn'));
+
+    // Roll reveal animation
+    let count = 0;
+    const luckyEl = document.getElementById('sbLucky');
+    const interval = setInterval(() => {
+      const rand = 1 + Math.floor(Math.random() * 36);
+      luckyEl.textContent = String(rand).padStart(2,'0');
+      luckyEl.style.animation = 'numRoll 0.1s ease';
+      count++;
+      if (count > 22) {
+        clearInterval(interval);
+        luckyEl.textContent = String(WINNING).padStart(2,'0');
+        luckyEl.style.animation = 'numPop 0.4s ease';
+
+        const isExact = selected === WINNING;
+        document.getElementById('sbResult').textContent = isExact ? '🏆 EXACT!' : '🌟 WIN!';
+
+        // Highlight the winning number
+        const winBtn = grid.querySelector(`[data-n="${WINNING}"]`);
+        if (winBtn) {
+          winBtn.classList.remove('disabled-btn');
+          winBtn.style.borderColor = 'var(--rose)';
+          winBtn.style.background = 'rgba(255,45,107,0.2)';
+          winBtn.style.color = 'var(--rose)';
+          winBtn.style.boxShadow = '0 0 24px rgba(255,45,107,0.5)';
+        }
+
+        setTimeout(() => {
+          document.getElementById('rfIcon').textContent = isExact ? '🏆' : '🌟';
+          document.getElementById('rfTitle').textContent = isExact ? 'EXACT MATCH!' : 'YOU\'RE A WINNER!';
+          document.getElementById('rfSub').textContent  = isExact ? `You picked the exact lucky number ${WINNING}!` : `Number ${selected} — fortune has chosen you!`;
+          document.getElementById('rfPrize').textContent = card6Prize;
+          document.getElementById('resultFlash').classList.add('show');
+          APP.boom(isExact ? '#FFD700' : '#00FF88');
+          APP.sparks(isExact ? '#FFD700' : '#00FF88', 20);
+        }, 500);
+      }
+    }, 85);
+  });
+
+  document.getElementById('revealBtn').addEventListener('click', () => {
+    document.getElementById('resultFlash').classList.remove('show');
+    APP.loadCSV(data => {
+      document.getElementById('carousel').classList.add('show');
+      APP.Carousel.init('carousel', data); APP.boom('#FFD700');
+      document.getElementById('carPrev').addEventListener('click', () => APP.Carousel.prev());
+      document.getElementById('carNext').addEventListener('click', () => APP.Carousel.next());
+    });
+  });
+
+  window.addEventListener('load', () => {
+    gsap.to('.game-eyebrow',{opacity:1,duration:0.8,delay:0.3});
+    gsap.fromTo('.game-title',{opacity:0,y:-22},{opacity:1,y:0,duration:0.9,ease:'power3.out',delay:0.4});
+    gsap.to('#pickerStage',{opacity:1,scale:1,duration:1.1,ease:'back.out(1.4)',delay:0.5});
+    gsap.from('#pickerStage',{opacity:0,scale:0.88,y:20});
+    // Stagger in number buttons
+    gsap.fromTo('.num-btn',{opacity:0,scale:0.6},{opacity:1,scale:1,duration:0.5,ease:'back.out(1.6)',stagger:{amount:0.7,from:'center'},delay:0.7});
+  });
+</script>
+</body>
+</html>

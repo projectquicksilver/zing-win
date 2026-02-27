@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Spin the Wheel — Card One</title>
+  <link rel="stylesheet" href="../shared/shared.css"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <style>
+    /* ── WHEEL PAGE ── */
+    .wheel-stage {
+      position: relative; display: flex; align-items: center; justify-content: center;
+      opacity: 0; margin-top: -8px;
+    }
+    .wheel-wrap { position: relative; width: 320px; height: 320px; }
+
+    /* Arrow pointer */
+    .wheel-ptr {
+      position: absolute; top: -24px; left: 50%; transform: translateX(-50%);
+      z-index: 10; display: flex; flex-direction: column; align-items: center;
+    }
+    .wheel-ptr-ball {
+      width: 20px; height: 20px; border-radius: 50%;
+      background: radial-gradient(circle, var(--gold), var(--amber));
+      box-shadow: 0 0 16px var(--gold), 0 0 32px rgba(255,215,0,0.4);
+    }
+    .wheel-ptr-shaft {
+      width: 0; height: 0;
+      border-left: 12px solid transparent;
+      border-right: 12px solid transparent;
+      border-top: 30px solid var(--gold);
+      filter: drop-shadow(0 3px 8px rgba(255,215,0,0.5));
+    }
+
+    #wheelCanvas {
+      width: 320px; height: 320px; border-radius: 50%;
+      box-shadow: 0 0 0 5px rgba(255,215,0,0.18),
+                  0 0 50px rgba(255,215,0,0.14),
+                  0 0 100px rgba(255,100,0,0.09);
+      cursor: none;
+    }
+    .wheel-hub {
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+      width: 58px; height: 58px; border-radius: 50%;
+      background: radial-gradient(circle at 40% 35%, #2a2060, #0c0a20);
+      border: 3px solid var(--gold);
+      box-shadow: 0 0 0 6px rgba(255,215,0,0.1), 0 0 24px rgba(255,215,0,0.3);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px; z-index: 5;
+    }
+
+    /* Tick marks ring */
+    .wheel-ticks {
+      position: absolute; inset: -16px; border-radius: 50%;
+      border: 2px dashed rgba(255,215,0,0.1);
+      animation: spin 20s linear infinite;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+<div id="cursor"></div><div id="cursor-dot"></div>
+<canvas id="bgCanvas"></canvas>
+<div class="noise"></div><div class="vignette"></div>
+
+<header class="page-header">
+  <a href="../index.html" class="back-btn">← Back to Cards</a>
+  <span class="page-badge">Card One · Spin the Wheel</span>
+</header>
+
+<div id="scene">
+  <div class="game-eyebrow">✦ One spin, one destiny ✦</div>
+  <div class="game-title">SPIN THE WHEEL</div>
+
+  <div class="wheel-stage" id="wheelStage">
+    <div class="wheel-wrap">
+      <div class="wheel-ptr">
+        <div class="wheel-ptr-ball"></div>
+        <div class="wheel-ptr-shaft"></div>
+      </div>
+      <div class="wheel-ticks"></div>
+      <canvas id="wheelCanvas" width="320" height="320"></canvas>
+      <div class="wheel-hub">🎯</div>
+    </div>
+  </div>
+
+  <button class="btn-primary show" id="spinBtn">⚡ SPIN NOW</button>
+</div>
+
+<!-- Result Flash -->
+<div class="result-flash" id="resultFlash">
+  <div class="rf-badge">Card One · Spin the Wheel</div>
+  <div class="rf-icon" id="rfIcon">🏆</div>
+  <div class="rf-title" id="rfTitle">WINNER!</div>
+  <div class="rf-sub">The wheel has chosen your fortune</div>
+  <div class="rf-prize" id="rfPrize">—</div>
+  <div class="rf-btns">
+    <button class="rf-reveal" id="revealBtn">🏆 View All Winners</button>
+    <button class="btn-secondary" onclick="document.getElementById('resultFlash').classList.remove('show')">← Spin Again</button>
+  </div>
+</div>
+
+<!-- Carousel -->
+<div id="carousel">
+  <div class="car-header">
+    <div class="car-title">🏆 Lucky Draw Winners</div>
+    <div class="car-sub">Official Results · Coromandel CPC 2025</div>
+  </div>
+  <div class="car-progress"><div class="car-progress-bar" id="carBar"></div></div>
+  <div class="car-viewport"><div class="car-track" id="carTrack"></div></div>
+  <div class="car-nav">
+    <div class="car-arrow" id="carPrev">←</div>
+    <div class="car-dots" id="carDots"></div>
+    <div class="car-arrow" id="carNext">→</div>
+  </div>
+  <a href="../index.html" class="car-home">← Return to Card Select</a>
+</div>
+
+<script src="../shared/shared.js"></script>
+<script>
+  APP.CFG.csvPath = '../data.csv';
+
+  APP.initParticles('bgCanvas');
+  APP.initCursor();
+
+  /* ── BUILD WHEEL FROM CSV DATA ── */
+  const wctx = document.getElementById('wheelCanvas').getContext('2d');
+  let segments = [], isSpinning = false, curAngle = 0;
+
+  const COLORS = ['#FFD700','#FF2D6B','#00E5FF','#C653FF','#FF8C00','#00FF88','#FF6B6B','#4ECDC4','#FFD700','#FF2D6B','#00E5FF','#C653FF'];
+  const ICONS  = ['🏆','💎','⚡','🌟','🔥','🎯','🎁','💫','🏅','🎊','✨','🎉'];
+
+  function buildWheel(data) {
+    // Use Card One entries first, then all winners
+    const winners = data.filter(r => (r.Status||'').toLowerCase().includes('winner') && !(r.Status||'').toLowerCase().includes('runner'));
+    const cardOne = data.filter(r => (r.Card||'').toLowerCase().includes('one'));
+    const pool = [...new Set([...cardOne, ...winners])].slice(0, 8);
+    if (pool.length < 2) {
+      // Fallback generic
+      segments = Array.from({length:8},(_,i)=>({label:`Prize ${i+1}`,color:COLORS[i],icon:ICONS[i],prize:'Special Prize'}));
+    } else {
+      segments = pool.map((r,i) => ({
+        label: r.Name || `Prize ${i+1}`,
+        color: COLORS[i % COLORS.length],
+        icon:  ICONS[i % ICONS.length],
+        prize: r.Prize || 'Special Prize',
+        status: r.Status || ''
+      }));
+    }
+    drawWheel(0);
+  }
+
+  function drawWheel(angle) {
+    const N = segments.length;
+    const ARC = 2 * Math.PI / N;
+    const cx = 160, cy = 160, r = 155;
+    wctx.clearRect(0, 0, 320, 320);
+
+    for (let i = 0; i < N; i++) {
+      const s = angle + i * ARC, e = s + ARC;
+      const seg = segments[i];
+
+      // Segment fill
+      wctx.beginPath(); wctx.moveTo(cx,cy); wctx.arc(cx,cy,r,s,e); wctx.closePath();
+      wctx.fillStyle = seg.color; wctx.fill();
+
+      // Darken alternate
+      if (i % 2 === 0) {
+        wctx.beginPath(); wctx.moveTo(cx,cy); wctx.arc(cx,cy,r,s,e); wctx.closePath();
+        wctx.fillStyle = 'rgba(0,0,0,0.14)'; wctx.fill();
+      }
+
+      // Border
+      wctx.beginPath(); wctx.moveTo(cx,cy); wctx.arc(cx,cy,r,s,e); wctx.closePath();
+      wctx.strokeStyle = 'rgba(4,3,13,0.5)'; wctx.lineWidth = 2; wctx.stroke();
+
+      // Icon
+      wctx.save();
+      wctx.translate(cx, cy); wctx.rotate(s + ARC / 2);
+      wctx.font = 'bold 20px sans-serif';
+      wctx.textAlign = 'center'; wctx.textBaseline = 'middle';
+      wctx.fillText(seg.icon, r * 0.64, 0);
+
+      // Name label (shortened)
+      const name = seg.label.split(' ')[0];
+      wctx.font = `bold 9px Orbitron,monospace`;
+      wctx.fillStyle = 'rgba(0,0,0,0.85)';
+      wctx.shadowColor = 'rgba(255,255,255,0.4)'; wctx.shadowBlur = 3;
+      wctx.fillText(name, r * 0.33, 0);
+      wctx.shadowBlur = 0;
+      wctx.restore();
+    }
+
+    // Outer ring
+    wctx.beginPath(); wctx.arc(cx,cy,r,0,Math.PI*2);
+    wctx.strokeStyle = 'rgba(255,215,0,0.45)'; wctx.lineWidth = 4; wctx.stroke();
+
+    // Inner radial shadow
+    const ig = wctx.createRadialGradient(cx,cy,r*0.45,cx,cy,r);
+    ig.addColorStop(0,'rgba(0,0,0,0)'); ig.addColorStop(1,'rgba(0,0,0,0.22)');
+    wctx.beginPath(); wctx.arc(cx,cy,r,0,Math.PI*2); wctx.fillStyle=ig; wctx.fill();
+  }
+
+  function spinWheel() {
+    if (isSpinning || !segments.length) return;
+    isSpinning = true;
+    document.getElementById('spinBtn').disabled = true;
+
+    // Camera shake
+    gsap.to('#wheelStage', { x: 4, yoyo: true, repeat: 6, duration: 0.06, ease: 'none', onComplete: () => gsap.set('#wheelStage', {x:0}) });
+
+    const extraSpins = 6 + Math.floor(Math.random() * 5);
+    const stopAt = Math.random() * 2 * Math.PI;
+    const total = extraSpins * 2 * Math.PI + stopAt;
+    const dur = 5000;
+    const startAngle = curAngle;
+    const startTime = performance.now();
+
+    function easeOut(t) { return 1 - Math.pow(1 - t, 4.5); }
+
+    function tick(now) {
+      const p = Math.min((now - startTime) / dur, 1);
+      curAngle = startAngle + total * easeOut(p);
+      drawWheel(curAngle);
+      if (p < 1) { requestAnimationFrame(tick); return; }
+
+      // Find winner
+      const N = segments.length;
+      const ARC = 2 * Math.PI / N;
+      const norm = (2 * Math.PI - curAngle % (2 * Math.PI)) % (2 * Math.PI);
+      const winIdx = Math.floor(norm / ARC) % N;
+      setTimeout(() => showResult(segments[winIdx]), 380);
+    }
+    requestAnimationFrame(tick);
+  }
+
+  function showResult(seg) {
+    document.getElementById('rfIcon').textContent  = seg.icon;
+    document.getElementById('rfTitle').textContent = seg.status.toLowerCase().includes('runner') ? 'RUNNER UP!' : 'WINNER!';
+    document.getElementById('rfPrize').textContent = seg.label + ' — ' + seg.prize;
+    document.getElementById('resultFlash').classList.add('show');
+    APP.boom(seg.color); APP.sparks(seg.color);
+    isSpinning = false;
+    document.getElementById('spinBtn').disabled = false;
+  }
+
+  document.getElementById('spinBtn').addEventListener('click', spinWheel);
+  document.getElementById('revealBtn').addEventListener('click', () => {
+    document.getElementById('resultFlash').classList.remove('show');
+    APP.loadCSV(data => {
+      document.getElementById('carousel').classList.add('show');
+      APP.Carousel.init('carousel', data);
+      APP.boom('#FFD700');
+      document.getElementById('carPrev').addEventListener('click', () => APP.Carousel.prev());
+      document.getElementById('carNext').addEventListener('click', () => APP.Carousel.next());
+    });
+  });
+
+  // Load and build wheel
+  APP.loadCSV(data => {
+    buildWheel(data);
+    gsap.to('.game-eyebrow', {opacity:1,duration:0.8,delay:0.3});
+    gsap.to('.game-title',   {opacity:1,y:0,duration:0.9,ease:'power3.out',delay:0.4});
+    gsap.fromTo('.game-title',{y:-22},{y:0,duration:0.9,ease:'power3.out',delay:0.4});
+    gsap.to('.game-sub',     {opacity:1,duration:0.8,delay:0.6});
+    gsap.to('#wheelStage',   {opacity:1,scale:1,duration:1.1,ease:'back.out(1.5)',delay:0.55});
+    gsap.from('#wheelStage', {scale:0.72});
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>All Winners — Coromandel CPC 2025</title>
+  <link rel="stylesheet" href="../shared/shared.css"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <style>
+    html, body { overflow-y: auto; }
+    #scene { height: auto; min-height: 100vh; padding: 90px 28px 60px; justify-content: flex-start; gap: 32px; }
+
+    .winners-title {
+      font-family: 'Bebas Neue', sans-serif; font-size: clamp(38px,6vw,80px);
+      letter-spacing: 8px; text-align: center;
+      background: linear-gradient(135deg, var(--gold), var(--amber), var(--rose));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      filter: drop-shadow(0 0 24px rgba(255,150,0,0.35));
+    }
+
+    .winners-sub { font-family: 'Orbitron', sans-serif; font-size: 8px; letter-spacing: 5px; color: rgba(255,215,0,0.4); text-transform: uppercase; }
+
+    /* Filter tabs */
+    .filter-tabs { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+    .ftab {
+      font-family: 'Orbitron', sans-serif; font-size: 8px; font-weight: 700;
+      letter-spacing: 2.5px; padding: 9px 20px; border-radius: 100px; cursor: none;
+      border: 1px solid rgba(255,215,0,0.2); background: transparent;
+      color: rgba(255,215,0,0.5); transition: all 0.2s;
+    }
+    .ftab.active, .ftab:hover { border-color: var(--gold); color: var(--gold); background: rgba(255,215,0,0.1); }
+
+    .winners-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px; width: 100%; max-width: 1200px;
+    }
+
+    .w-card {
+      background: linear-gradient(148deg, #0f0e2c, #130d38, #0a0a1e);
+      border: 1px solid rgba(255,215,0,0.16); border-radius: 20px; padding: 22px 20px;
+      position: relative; overflow: hidden;
+      transition: transform 0.3s, box-shadow 0.3s;
+      animation: cardSlideIn 0.5s both ease;
+    }
+    .w-card::before { content:''; position:absolute; inset:0; border-radius:20px; background:linear-gradient(130deg,transparent 20%,rgba(255,215,0,0.03) 40%,transparent 60%,rgba(0,229,255,0.02) 78%,transparent 95%); animation:holoShift 6s ease-in-out infinite alternate; }
+    .w-card:hover { transform: translateY(-4px); box-shadow: 0 20px 50px rgba(0,0,0,0.5), 0 0 24px rgba(255,215,0,0.1); }
+    .w-card.winner-card { border-color: rgba(255,215,0,0.28); }
+    .w-card.runner-card { border-color: rgba(0,229,255,0.18); }
+
+    .wc-header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px; }
+    .wc-id { font-family:'Space Mono',monospace; font-size:10px; color:rgba(255,255,255,0.2); }
+    .wc-card { font-family:'Orbitron',sans-serif; font-size:7px; letter-spacing:2px; color:rgba(255,215,0,0.35); }
+    .wc-name { font-family:'Syne',sans-serif; font-size:20px; font-weight:800; color:#fff; margin-bottom:3px; }
+    .wc-dept { font-family:'Syne',sans-serif; font-size:11px; color:rgba(255,255,255,0.35); margin-bottom:14px; }
+    .wc-prize-box { background:rgba(255,215,0,0.06); border:1px solid rgba(255,215,0,0.12); border-radius:10px; padding:10px 13px; margin-bottom:12px; }
+    .wc-prize-lbl { font-family:'Orbitron',sans-serif; font-size:6px; letter-spacing:3px; color:rgba(255,215,0,0.38); margin-bottom:4px; }
+    .wc-prize { font-family:'Bebas Neue',sans-serif; font-size:19px; letter-spacing:2px; background:linear-gradient(90deg,var(--gold),var(--amber)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; line-height:1.1; }
+    .wc-status { display:inline-flex; align-items:center; gap:5px; font-family:'Orbitron',sans-serif; font-size:7px; font-weight:700; letter-spacing:2px; padding:4px 11px; border-radius:100px; text-transform:uppercase; }
+    .wc-status::before { content:''; width:5px; height:5px; border-radius:50%; background:currentColor; }
+    .wc-status.sw { background:rgba(255,215,0,0.12); border:1px solid rgba(255,215,0,0.28); color:var(--gold); }
+    .wc-status.sr { background:rgba(0,229,255,0.08); border:1px solid rgba(0,229,255,0.2); color:var(--cyan); }
+
+    .no-data { font-family:'Syne',sans-serif; font-size:16px; color:rgba(255,255,255,0.3); text-align:center; padding:60px; }
+  </style>
+</head>
+<body>
+<div id="cursor"></div><div id="cursor-dot"></div>
+<canvas id="bgCanvas"></canvas>
+<div class="noise"></div><div class="vignette"></div>
+
+<header class="page-header">
+  <a href="../index.html" class="back-btn">← Back to Cards</a>
+  <span class="page-badge">Official Results · 2025</span>
+</header>
+
+<div id="scene">
+  <div style="text-align:center">
+    <div class="winners-title">🏆 LUCKY DRAW WINNERS</div>
+    <div class="winners-sub" style="margin-top:6px">Official Results · Coromandel CPC 2025</div>
+  </div>
+
+  <div class="filter-tabs" id="filterTabs">
+    <button class="ftab active" data-filter="all">All Entries</button>
+    <button class="ftab" data-filter="winner">Winners Only</button>
+    <button class="ftab" data-filter="runner">Runner Ups</button>
+    <button class="ftab" data-filter="Card One">Card One</button>
+    <button class="ftab" data-filter="Card Two">Card Two</button>
+    <button class="ftab" data-filter="Card Three">Card Three</button>
+    <button class="ftab" data-filter="Card Four">Card Four</button>
+    <button class="ftab" data-filter="Card Five">Card Five</button>
+    <button class="ftab" data-filter="Card Six">Card Six</button>
+  </div>
+
+  <div class="winners-grid" id="winnersGrid">
+    <div class="no-data">Loading winners...</div>
+  </div>
+</div>
+
+<script src="../shared/shared.js"></script>
+<script>
+  APP.CFG.csvPath = '../data.csv';
+  APP.initParticles('bgCanvas');
+  APP.initCursor();
+
+  let allData = [], currentFilter = 'all';
+
+  function renderCards(data) {
+    const grid = document.getElementById('winnersGrid');
+    if (!data.length) { grid.innerHTML = '<div class="no-data">No entries found.</div>'; return; }
+    grid.innerHTML = '';
+    data.forEach((row, i) => {
+      const isWin = (row.Status||'').toLowerCase().includes('winner') && !(row.Status||'').toLowerCase().includes('runner');
+      const card = document.createElement('div');
+      card.className = `w-card ${isWin ? 'winner-card' : 'runner-card'}`;
+      card.style.animationDelay = (i * 0.06) + 's';
+      card.innerHTML = `
+        <div class="wc-header">
+          <div class="wc-id">#${String(row.ID||i+1).padStart(3,'0')}</div>
+          <div class="wc-card">${row.Card||''}</div>
+        </div>
+        <div class="wc-name">${row.Name||'—'}</div>
+        <div class="wc-dept">${row.Department||'—'}</div>
+        <div class="wc-prize-box">
+          <div class="wc-prize-lbl">PRIZE</div>
+          <div class="wc-prize">${row.Prize||'—'}</div>
+        </div>
+        <span class="wc-status ${isWin?'sw':'sr'}">${row.Status||'—'}</span>`;
+      grid.appendChild(card);
+    });
+  }
+
+  function applyFilter(f) {
+    currentFilter = f;
+    document.querySelectorAll('.ftab').forEach(t => t.classList.toggle('active', t.dataset.filter === f));
+    let filtered = allData;
+    if (f === 'winner') filtered = allData.filter(r => (r.Status||'').toLowerCase().includes('winner') && !(r.Status||'').toLowerCase().includes('runner'));
+    else if (f === 'runner') filtered = allData.filter(r => (r.Status||'').toLowerCase().includes('runner'));
+    else if (f !== 'all') filtered = allData.filter(r => (r.Card||'').toLowerCase() === f.toLowerCase());
+    renderCards(filtered);
+  }
+
+  document.getElementById('filterTabs').addEventListener('click', e => {
+    const tab = e.target.closest('.ftab');
+    if (tab) applyFilter(tab.dataset.filter);
+  });
+
+  APP.loadCSV(data => {
+    allData = data;
+    renderCards(data);
+    APP.boom('#FFD700');
+    gsap.fromTo('.w-card', {opacity:0,y:24}, {opacity:1,y:0,duration:0.6,ease:'power2.out',stagger:0.07});
+  });
+
+  window.addEventListener('load', () => {
+    gsap.fromTo('.winners-title',{opacity:0,y:-30},{opacity:1,y:0,duration:1,ease:'power3.out',delay:0.2});
+    gsap.fromTo('.filter-tabs',{opacity:0,y:20},{opacity:1,y:0,duration:0.8,delay:0.5});
+  });
+</script>
+</body>
+</html>

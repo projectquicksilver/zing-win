@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Lucky Dice — Card Four</title>
+  <link rel="stylesheet" href="../shared/shared.css"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <style>
+    /* ── DICE TABLE ── */
+    .dice-table {
+      background: linear-gradient(140deg, #0c1c0c, #0a1808, #111f0e);
+      border: 1.5px solid rgba(0,255,100,0.1);
+      border-radius: 30px; padding: 30px 50px;
+      box-shadow: 0 0 70px rgba(0,200,80,0.06), var(--shadow2), inset 0 1px 0 rgba(255,255,255,0.04);
+      display: flex; flex-direction: column; align-items: center; gap: 20px;
+      position: relative; opacity: 0;
+    }
+    .dice-table::before {
+      content:''; position:absolute; inset:0; border-radius:28px;
+      background-image: repeating-linear-gradient(45deg, rgba(0,255,100,0.012) 0px, rgba(0,255,100,0.012) 1px, transparent 1px, transparent 10px);
+      pointer-events:none;
+    }
+
+    /* Score panel */
+    .score-panel {
+      background: rgba(0,0,0,0.32); border: 1px solid rgba(0,229,255,0.12); border-radius: 18px;
+      padding: 12px 36px; display: flex; align-items: center; gap: 24px;
+    }
+    .score-item { display:flex; flex-direction:column; align-items:center; gap:2px; }
+    .score-lbl { font-family:'Orbitron',sans-serif; font-size:6.5px; letter-spacing:3px; color:rgba(0,229,255,0.4); }
+    .score-val { font-family:'Orbitron',sans-serif; font-size:28px; font-weight:900; color:var(--cyan); text-shadow:0 0 16px rgba(0,229,255,0.5); line-height:1; transition:all 0.3s; }
+    .score-div { width:1px; height:38px; background:linear-gradient(to bottom,transparent,rgba(0,229,255,0.2),transparent); }
+
+    /* Dice stage */
+    .dice-stage { display:flex; align-items:flex-end; justify-content:center; gap:32px; }
+    .die-wrap { display:flex; flex-direction:column; align-items:center; gap:8px; }
+
+    /* 3D die */
+    .die {
+      width:88px; height:88px; position:relative;
+      transform-style:preserve-3d;
+      filter:drop-shadow(0 10px 20px rgba(0,0,0,0.6));
+    }
+    .die-face {
+      position:absolute; width:88px; height:88px;
+      background:linear-gradient(145deg,rgba(255,255,255,0.1),rgba(255,255,255,0.04));
+      border:1.5px solid rgba(0,229,255,0.35); border-radius:16px;
+      display:flex; align-items:center; justify-content:center;
+      font-size:38px; backface-visibility:hidden;
+      box-shadow:inset 0 1px 0 rgba(255,255,255,0.14), inset 0 -1px 0 rgba(0,0,0,0.3);
+    }
+    .die-face.f1{transform:translateZ(44px)}
+    .die-face.f2{transform:rotateY(180deg) translateZ(44px)}
+    .die-face.f3{transform:rotateY(90deg) translateZ(44px)}
+    .die-face.f4{transform:rotateY(-90deg) translateZ(44px)}
+    .die-face.f5{transform:rotateX(90deg) translateZ(44px)}
+    .die-face.f6{transform:rotateX(-90deg) translateZ(44px)}
+
+    .die-shadow { width:78px; height:14px; background:radial-gradient(ellipse,rgba(0,0,0,0.5) 0%,transparent 70%); border-radius:50%; }
+    .die-value { font-family:'Orbitron',sans-serif; font-size:8.5px; letter-spacing:3px; color:rgba(0,229,255,0.45); text-transform:uppercase; }
+
+    /* Roll button */
+    .btn-roll {
+      font-family:'Orbitron',sans-serif; font-size:12px; font-weight:900; letter-spacing:3px;
+      padding:15px 52px; border-radius:14px; border:none; cursor:none;
+      background:linear-gradient(135deg,var(--cyan),#0080ff,var(--violet)); color:#fff;
+      box-shadow:0 0 32px rgba(0,229,255,0.32),0 4px 20px rgba(0,0,0,0.5);
+      position:relative; overflow:hidden; transition:transform 0.2s; opacity:0;
+    }
+    .btn-roll::before{content:'';position:absolute;top:-50%;left:-80%;width:55%;height:200%;background:rgba(255,255,255,0.2);transform:skewX(-22deg);animation:btnShine 3s infinite;}
+    .btn-roll:hover{transform:scale(1.06);}
+    .btn-roll:disabled{opacity:0.35;}
+    .btn-roll.show{opacity:1;}
+  </style>
+</head>
+<body>
+<div id="cursor"></div><div id="cursor-dot"></div>
+<canvas id="bgCanvas"></canvas>
+<div class="noise"></div><div class="vignette"></div>
+
+<header class="page-header">
+  <a href="../index.html" class="back-btn">← Back to Cards</a>
+  <span class="page-badge">Card Four · Lucky Dice</span>
+</header>
+
+<div id="scene">
+  <div class="game-eyebrow">✦ Roll for fortune — three dice, one destiny ✦</div>
+  <div class="game-title">LUCKY DICE</div>
+
+  <div class="dice-table" id="diceTable">
+    <div class="score-panel">
+      <div class="score-item"><div class="score-lbl">Total</div><div class="score-val" id="scTotal">—</div></div>
+      <div class="score-div"></div>
+      <div class="score-item"><div class="score-lbl">Best</div><div class="score-val" id="scBest">—</div></div>
+      <div class="score-div"></div>
+      <div class="score-item"><div class="score-lbl">Rolls</div><div class="score-val" id="scRolls">0</div></div>
+    </div>
+
+    <div class="dice-stage">
+      <div class="die-wrap">
+        <div class="die" id="die0">
+          <div class="die-face f1">⚀</div><div class="die-face f2">⚁</div>
+          <div class="die-face f3">⚂</div><div class="die-face f4">⚃</div>
+          <div class="die-face f5">⚄</div><div class="die-face f6">⚅</div>
+        </div>
+        <div class="die-shadow"></div><div class="die-value" id="dv0">—</div>
+      </div>
+      <div class="die-wrap">
+        <div class="die" id="die1">
+          <div class="die-face f1">⚀</div><div class="die-face f2">⚁</div>
+          <div class="die-face f3">⚂</div><div class="die-face f4">⚃</div>
+          <div class="die-face f5">⚄</div><div class="die-face f6">⚅</div>
+        </div>
+        <div class="die-shadow"></div><div class="die-value" id="dv1">—</div>
+      </div>
+      <div class="die-wrap">
+        <div class="die" id="die2">
+          <div class="die-face f1">⚀</div><div class="die-face f2">⚁</div>
+          <div class="die-face f3">⚂</div><div class="die-face f4">⚃</div>
+          <div class="die-face f5">⚄</div><div class="die-face f6">⚅</div>
+        </div>
+        <div class="die-shadow"></div><div class="die-value" id="dv2">—</div>
+      </div>
+    </div>
+  </div>
+
+  <button class="btn-roll show" id="rollBtn">🎲 ROLL THE DICE</button>
+</div>
+
+<div class="result-flash" id="resultFlash">
+  <div class="rf-badge">Card Four · Lucky Dice</div>
+  <div class="rf-icon">🎲</div>
+  <div class="rf-title">LUCKY ROLL!</div>
+  <div class="rf-sub">The dice have decided your fate!</div>
+  <div class="rf-prize" id="rfPrize">—</div>
+  <div class="rf-btns">
+    <button class="rf-reveal" id="revealBtn">🏆 View All Winners</button>
+    <button class="btn-secondary" onclick="document.getElementById('resultFlash').classList.remove('show')">← Roll Again</button>
+  </div>
+</div>
+
+<div id="carousel">
+  <div class="car-header"><div class="car-title">🏆 Lucky Draw Winners</div><div class="car-sub">Official Results · Coromandel CPC 2025</div></div>
+  <div class="car-progress"><div class="car-progress-bar" id="carBar"></div></div>
+  <div class="car-viewport"><div class="car-track" id="carTrack"></div></div>
+  <div class="car-nav"><div class="car-arrow" id="carPrev">←</div><div class="car-dots" id="carDots"></div><div class="car-arrow" id="carNext">→</div></div>
+  <a href="../index.html" class="car-home">← Return to Card Select</a>
+</div>
+
+<script src="../shared/shared.js"></script>
+<script>
+  APP.CFG.csvPath = '../data.csv';
+  APP.initParticles('bgCanvas');
+  APP.initCursor();
+
+  const FACE_ROT={1:{x:0,y:0},2:{x:0,y:180},3:{x:0,y:-90},4:{x:0,y:90},5:{x:-90,y:0},6:{x:90,y:0}};
+  let rolling=false, rolls=0, best=0;
+
+  // Load Card Four prize
+  let card4Prize = 'Laptop Bag + Accessories';
+  APP.loadCSV(data => {
+    const r = data.find(d => (d.Card||'').toLowerCase().includes('four') && (d.Status||'').toLowerCase().includes('winner') && !(d.Status||'').toLowerCase().includes('runner'));
+    if (r) card4Prize = r.Name + ' — ' + r.Prize;
+  });
+
+  function rollDie(el, shadow, valEl, delay) {
+    return new Promise(resolve => {
+      setTimeout(() => {
+        const result = 1 + Math.floor(Math.random() * 6);
+        const spins = 3 + Math.floor(Math.random() * 3);
+        const target = FACE_ROT[result];
+        const tl = gsap.timeline();
+        tl.to(el, {
+          rotationX: `+=${spins*360 + target.x}`,
+          rotationY: `+=${spins*360 + target.y}`,
+          duration: 1.3, ease: 'power4.out',
+          onComplete: () => { gsap.set(el, {rotationX: target.x, rotationY: target.y}); resolve(result); }
+        });
+        tl.to(shadow, { scaleX:1.4, scaleY:0.4, duration:0.12, ease:'power2.in' }, '-=0.2')
+          .to(shadow, { scaleX:1, scaleY:1, duration:0.25, ease:'elastic.out(1.2,0.4)' });
+        tl.to(valEl, { scale:1.4, color:'var(--cyan)', duration:0.1 }, '-=0.15')
+          .to(valEl, { scale:1, color:'rgba(0,229,255,0.45)', duration:0.2 });
+      }, delay);
+    });
+  }
+
+  function roll() {
+    if (rolling) return;
+    rolling = true;
+    const btn = document.getElementById('rollBtn'); btn.disabled = true;
+    rolls++; document.getElementById('scRolls').textContent = rolls;
+
+    // Shake table
+    gsap.to('#diceTable', { x:4, yoyo:true, repeat:6, duration:0.055, ease:'none', onComplete:()=>gsap.set('#diceTable',{x:0}) });
+
+    const wraps = document.querySelectorAll('.die-wrap');
+    const p = [
+      rollDie(document.getElementById('die0'), wraps[0].querySelector('.die-shadow'), document.getElementById('dv0'), 0),
+      rollDie(document.getElementById('die1'), wraps[1].querySelector('.die-shadow'), document.getElementById('dv1'), 200),
+      rollDie(document.getElementById('die2'), wraps[2].querySelector('.die-shadow'), document.getElementById('dv2'), 400),
+    ];
+
+    Promise.all(p).then(vals => {
+      const total = vals.reduce((a,b)=>a+b,0);
+      if (total > best) best = total;
+      document.getElementById('scTotal').textContent = total;
+      document.getElementById('scBest').textContent = best;
+      vals.forEach((v,i) => document.getElementById('dv'+i).textContent = v+' pt'+(v!==1?'s':''));
+      document.getElementById('rfPrize').textContent = card4Prize + ' · Score: ' + total + ' pts';
+      setTimeout(() => {
+        document.getElementById('resultFlash').classList.add('show');
+        APP.boom('#00E5FF'); APP.sparks('#C653FF');
+      }, 500);
+      rolling = false; btn.disabled = false;
+    });
+  }
+
+  document.getElementById('rollBtn').addEventListener('click', roll);
+  document.getElementById('revealBtn').addEventListener('click', () => {
+    document.getElementById('resultFlash').classList.remove('show');
+    APP.loadCSV(data => {
+      document.getElementById('carousel').classList.add('show');
+      APP.Carousel.init('carousel', data); APP.boom('#FFD700');
+      document.getElementById('carPrev').addEventListener('click', () => APP.Carousel.prev());
+      document.getElementById('carNext').addEventListener('click', () => APP.Carousel.next());
+    });
+  });
+
+  window.addEventListener('load', () => {
+    gsap.to('.game-eyebrow',{opacity:1,duration:0.8,delay:0.3});
+    gsap.fromTo('.game-title',{opacity:0,y:-22},{opacity:1,y:0,duration:0.9,ease:'power3.out',delay:0.4});
+    gsap.to('#diceTable',{opacity:1,scale:1,duration:1.1,ease:'back.out(1.4)',delay:0.5});
+    gsap.from('#diceTable',{opacity:0,scale:0.78,y:28});
+    gsap.to('.btn-roll',{opacity:1,duration:0.7,delay:0.95});
+  });
+</script>
+</body>
+</html>
